@@ -5,10 +5,9 @@
 
 <br>
 
-| Nome completo | RA |
+| Daniel Fernando dos Santos | 2041382421027 |
 |:--------------|:---|
-|                |     |
-|                |     |
-|                |     |
-|                |     |
-|                |     |
+| Gabriel Kenji Nishimura | 2041382211036 |
+|:--------------|:---|
+| Lucas Antonio Evangelista dos Santos |  2041382411010  |
+|:--------------|:---|
