@@ -5,30 +5,172 @@ NÃO É PERMITIDO APAGAR CARACTERES OS CARACTERES SEPARADORES (===) E/OU ENUNCIA
 EXERCÍCIO 1 (PL/pgSQL)
 CRIAÇÃO DO DATABASE
 
+CREATE DATABASE "dw_vgsales";
+
 ===========================
 EXERCÍCIO 2 (PL/pgSQL)
 CRIAÇÃO DAS TABELAS DIMENSÃO
+
+-- Dimensão Plataforma
+CREATE TABLE dim_plataforma (
+    plataforma_key INT PRIMARY KEY,
+    nome_plataforma VARCHAR(500)
+);
+
+-- Dimensão Gênero
+CREATE TABLE dim_genero (
+    genero_key INT PRIMARY KEY,
+    nome_genero VARCHAR(500)
+);
+
+-- Dimensão Publisher
+CREATE TABLE dim_publisher (
+    publisher_key INT PRIMARY KEY,
+    nome_publisher VARCHAR(500)
+);
+
+-- Dimensão Jogo (Nome do jogo)
+CREATE TABLE dim_jogo (
+    jogo_key INT PRIMARY KEY,
+    nome_jogo VARCHAR(500) 
+);
+
+-- Dimensão Tempo
+CREATE TABLE dim_tempo (
+    tempo_key INT PRIMARY KEY,
+    ano INT
+);
 
 ===========================
 EXERCÍCIO 3 (PL/pgSQL)
 CRIAÇÃO DA TABELA FATO
 
+CREATE TABLE fato_vendas (
+    venda_id SERIAL PRIMARY KEY,
+    tempo_key INTEGER REFERENCES dim_tempo(tempo_key),
+    plataforma_key INTEGER REFERENCES dim_plataforma(plataforma_key),
+    genero_key INTEGER REFERENCES dim_genero(genero_key),
+    publisher_key INTEGER REFERENCES dim_publisher(publisher_key),
+    jogo_key INTEGER REFERENCES dim_jogo(jogo_key),
+);
+
 ===========================
 EXERCÍCIO 4 (PYTHON)
 CARGA DO ARQUIVO CSV COM PANDAS
+
+#Extração
+df = pd.read_csv("vgsales.csv")
+print(df.head())
 
 ===========================
 EXERCÍCIO 5 (PYTHON)
 TRANSFORMAÇÕES NECESSÁRIAS, INCLUINDO GERAÇÃO DE CHAVES
 
+#Limpeza
+df = df.dropna(subset=['Year', 'Publisher', 'Name', 'Platform', 'Genre'])
+df['Year'] = df['Year'].astype(int)
+
+#Criando chaves
+df['plataforma_key'] = df['Platform'].astype('category').cat.codes + 1
+df['genero_key'] = df['Genre'].astype('category').cat.codes + 1
+df['publisher_key'] = df['Publisher'].astype('category').cat.codes + 1
+df['jogo_key'] = df['Name'].astype('category').cat.codes + 1
+df['tempo_key'] = df['Year'].astype('category').cat.codes + 1
 ===========================
 EXERCÍCIO 6 (PYTHON)
 CONEXÃO COM O BANCO (PYTHON)
+conn = psycopg2.connect(
+    host="localhost",
+    database="dw_vgsales",
+    user="postgres",
+    password="123456"
+)
+cur = conn.cursor()
 
 ===========================
 EXERCÍCIO 7 (PYTHON)
 CADASTRO DE DIMENSÕES
 
+# Cadastro Dimensão Plataforma 
+dim_plataforma = df[["plataforma_key", "Platform"]].drop_duplicates()
+
+for index, row in dim_plataforma.iterrows():
+    cur.execute("""
+        INSERT INTO dim_plataforma (plataforma_key, nome)
+        VALUES (%s, %s)
+        ON CONFLICT (plataforma_key) DO NOTHING;
+    """, (row["plataforma_key"], row["Platform"]))
+
+# Cadastro Dimensão Gênero 
+dim_genero = df[["genero_key", "Genre"]].drop_duplicates()
+
+for index, row in dim_genero.iterrows():
+    cur.execute("""
+        INSERT INTO dim_genero (genero_key, genero)
+        VALUES (%s, %s)
+        ON CONFLICT (genero_key) DO NOTHING;
+    """, (row["genero_key"], row["Genre"]))
+
+print("Dimensão Gênero carregada.")
+
+# Cadastro Dimensão Publisher
+dim_publisher = df[["publisher_key", "Publisher"]].drop_duplicates()
+
+for index, row in dim_publisher.iterrows():
+    cur.execute("""
+        INSERT INTO dim_publisher (publisher_key, nome)
+        VALUES (%s, %s)
+        ON CONFLICT (publisher_key) DO NOTHING;
+    """, (row["publisher_key"], row["Publisher"]))
+
+
+# Cadastro Dimensão Jogo ---
+dim_jogo = df[["jogo_key", "Name"]].drop_duplicates()
+
+for index, row in dim_jogo.iterrows():
+    cur.execute("""
+        INSERT INTO dim_jogo (jogo_key, nome)
+        VALUES (%s, %s)
+        ON CONFLICT (jogo_key) DO NOTHING;
+    """, (row["jogo_key"], row["Name"]))
+
+
+# Cadastro Dimensão Tempo
+dim_tempo = df[["tempo_key", "Year"]].drop_duplicates()
+
+for index, row in dim_tempo.iterrows():
+    cur.execute("""
+        INSERT INTO dim_tempo (tempo_key, ano)
+        VALUES (%s, %s)
+        ON CONFLICT (tempo_key) DO NOTHING;
+    """, (row["tempo_key"], row["Year"]))
+
 ===========================
 EXERCÍCIO 8 (PYTHON)
 CADASTRO DE DADOS NA TABELA FATO
+
+fato_df = df[[
+    'plataforma_key', 'genero_key', 'publisher_key', 'jogo_key', 'tempo_key',
+    'NA_Sales', 'EU_Sales', 'JP_Sales', 'Other_Sales', 'Global_Sales'
+]]
+
+for index, row in fato_df.iterrows():
+    query = """
+        INSERT INTO fato_vendas (
+            plataforma_key, genero_key, publisher_key, jogo_key, tempo_key,
+            na_sales, eu_sales, jp_sales, other_sales, global_sales
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+    """
+    cur.execute(query, (
+        row['plataforma_key'],
+        row['genero_key'],
+        row['publisher_key'],
+        row['jogo_key'],
+        row['tempo_key'],
+        row['NA_Sales'],
+        row['EU_Sales'],
+        row['JP_Sales'],
+        row['Other_Sales'],
+        row['Global_Sales']
+    ))
